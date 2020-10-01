@@ -19,7 +19,7 @@ if (file.exists(glue::glue('{data_path}/master_db'))) {
 message(glue::glue('Connecting to database.'))
 con <- DBI::dbConnect(RSQLite::SQLite(), glue::glue('{data_path}/master_db'))
 
-for (x in 1999:2019) {
+for (x in 1999:2020) {
   message(glue::glue('Downloading {x} games now'))
   pbp_cleaned <- readRDS(
     url(glue::glue("https://raw.githubusercontent.com/guga31bb/nflfastR-data/master/data/play_by_play_{x}.rds"))

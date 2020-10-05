@@ -11,5 +11,7 @@ tictoc::toc()
 
 DBI::dbDisconnect(con)
 
+x = 2020
+pbp <- readRDS(url(glue::glue("https://raw.githubusercontent.com/guga31bb/nflfastR-data/master/data/play_by_play_{x}.rds")))
 
 games <- readRDS(url("http://www.habitatring.com/games.rds"))

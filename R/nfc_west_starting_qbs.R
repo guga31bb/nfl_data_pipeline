@@ -2,7 +2,7 @@ library(tidyverse)
 library(gt)
 
 # get pbp to figure out starts
-seasons <- 2012:2019
+seasons <- 2012:2020
 pbp <- purrr::map_df(seasons, function(x) {
   readRDS(
     url(

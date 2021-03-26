@@ -35,28 +35,18 @@ for (x in 1999:2020) {
 
 message(glue::glue('Connecting to database.'))
 
-DBI::dbListTables(con)
-DBI::dbListFields(con, "cleaned_pbp") %>%
-  tail(20)
-
 pbp_db <- dplyr::tbl(con, "cleaned_pbp")
 pbp_db %>%
   dplyr::group_by(season) %>%
   dplyr::summarize(n=n()) %>%
   dplyr::collect() %>%
-  head(11)
-
-pbp_db %>%
-  dplyr::group_by(season) %>%
-  dplyr::summarize(n=n()) %>%
-  dplyr::collect() %>%
-  tail(11)
+  print(n = 30)
 
 pbp_db %>%
   dplyr::group_by(posteam) %>%
   dplyr::summarize(n=n()) %>%
   dplyr::collect() %>%
-  head(20)
+  print(n = 40)
 
 DBI::dbDisconnect(con)
 

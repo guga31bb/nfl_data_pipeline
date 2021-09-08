@@ -1,10 +1,13 @@
 source('helpers.R')
+source('https://raw.githubusercontent.com/guga31bb/nflfastR-raw/master/get_current_week.R')
 
 #######################################################
 ## this will nuke the whole thing and start over ######
 #######################################################
 
 message('You have decided to nuke the DB and start over')
+
+s <- get_current_season()
 
 if (file.exists(glue::glue('{data_path}/master_db'))) {
   tryCatch({
@@ -19,7 +22,7 @@ if (file.exists(glue::glue('{data_path}/master_db'))) {
 message(glue::glue('Connecting to database.'))
 con <- DBI::dbConnect(RSQLite::SQLite(), glue::glue('{data_path}/master_db'))
 
-for (x in 1999:2020) {
+for (x in 1999:s) {
   message(glue::glue('Downloading {x} games now'))
   pbp_cleaned <- readRDS(
     url(glue::glue("https://raw.githubusercontent.com/guga31bb/nflfastR-data/master/data/play_by_play_{x}.rds"))

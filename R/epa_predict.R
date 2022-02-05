@@ -21,6 +21,46 @@ add_dakota <- function(pbp) {
 
 seasons <- 2006:2021
 
+# get off playcallers
+
+pc <- read_csv(url("https://raw.githubusercontent.com/ajreinhard/NFL-public/main/misc-data/playcallers.csv")) %>% 
+  group_by(season, posteam, off_play_caller) %>%
+  summarise(n = n()) %>%
+  ungroup() %>%
+  arrange(posteam, season, -n) %>%
+  group_by(posteam, season) %>%
+  dplyr::slice(1) %>%
+  ungroup() %>%
+  select(-n)
+
+pc
+
+# hard codes for 2021
+same_pc <- c("ARI", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE", "DAL", "DEN", "GB", "HOU", "IND", "KC", "LA", "LV", "NE", "NO", "NYG", "SF", "TB", "WAS")
+same_pc
+
+new_pc <- as_tibble(unique(pc$posteam)) %>%
+  mutate(
+    season = 2021,
+    off_play_caller = "new"
+  ) %>%
+  dplyr::rename(posteam = value) %>%
+  bind_rows(pc) %>%
+  arrange(posteam, season) %>%
+  group_by(posteam) %>%
+  mutate(
+    off_play_caller = case_when(
+      posteam %in% same_pc & season == 2021 ~ dplyr::lag(off_play_caller),
+      TRUE ~ off_play_caller
+    ),
+    new_pc = ifelse(off_play_caller != dplyr::lag(off_play_caller), 1, 0)
+  ) %>%
+  ungroup() %>%
+  filter(season > 2011) %>%
+  select(posteam, season, new_pc)
+
+
+
 # created in helper file (public data from SIS leaderboard)
   sis_all <- readRDS("data/sis.rds") %>%
     separate(player_name, c("first_name","last_name"), sep= " ") %>%
@@ -176,6 +216,7 @@ qbs <- all_data %>%
   left_join(pff,by=c("name", "season")) %>%
   left_join(qbr,by=c("name", "season"))  %>%
   left_join(sis_all, by=c("name", "season")) %>%
+  left_join(new_pc, by = c("posteam", "season")) %>%
   add_dakota() %>%
   ungroup() %>%
   mutate(
@@ -193,7 +234,8 @@ qbs <- all_data %>%
     filter(is.na(total_points), season > 2016)
 
   qbs %>%
-    select(name, season, posteam, n_plays, espn_plays, epa_per_play, total_points, qbr, lag_qbr, cpoe, grade, lag_grade, war)
+    filter(name == "R.Wilson") %>%
+    select(name, season, posteam, new_pc, n_plays, espn_plays, epa_per_play, total_points, qbr, lag_qbr, cpoe, grade, lag_grade, war)
 
 # get prior season for stuff we don't have already
 lqb <- qbs %>%
@@ -217,11 +259,12 @@ lqb <- qbs %>%
     lag_qbr = lag(qbr, n = 1, order_by = season),
     lag_posteam = lag(posteam, n = 1, order_by = season)
   ) %>% 
-  ungroup()
+  ungroup() %>%
+  filter(!is.na(lepa))
 
 # more checks
-lqb %>% filter(name=="T.Brady") %>%
-  select(name, posteam, lag_posteam, season, total_epa, ltot_epa)
+lqb %>% filter(posteam == "SF") %>%
+  select(name, posteam, lag_posteam, season, total_epa, ltot_epa, new_pc)
 
 # there's probably a better way to do this but oh well
 t <- tibble::tribble(
@@ -387,7 +430,9 @@ ggsave("img/16_qb_predict_t.png", dpi = 600)
 # for QBs switching teams
 
 lqb <- lqb %>%
-  filter(posteam != lag_posteam)
+  group_by(id) %>%
+  filter(posteam != lag_posteam) %>%
+  ungroup()
 
 t2 <- tibble::tribble(
   ~"Metric", ~"Stability", ~"epa",
@@ -429,7 +474,7 @@ tab <- t2 %>%
   tab_style(style = cell_text(size = 'x-large'), locations = cells_title(groups = 'title')) %>%
   data_color(
     columns = vars(epa),
-    colors = scales::col_numeric(palette = c('grey97', 'darkorange1'), domain = c(0.05,0.29)),
+    colors = scales::col_numeric(palette = c('grey97', 'darkorange1'), domain = c(0.03,0.31)),
     autocolor_text = FALSE
   ) %>%
   gtExtras::gt_theme_538() %>%
@@ -463,4 +508,91 @@ lqb %>%
   arrange(season) %>%
   select(name, season, posteam, lag_posteam)
 
+# ########################################################################
+# QBs with new playcaller
+
+
+lqb <- lqb %>%
+  group_by(id) %>%
+  filter(
+    (new_pc == 1 & posteam == dplyr::lag(posteam)) | posteam != dplyr::lag(posteam),
+    !is.na(lepa),
+    season >= 2012
+    ) %>%
+  ungroup()
+
+
+t2 <- tibble::tribble(
+  ~"Metric", ~"Stability", ~"epa",
+  "TD/INT ratio",      cor(lqb$tdint, lqb$ltdint, use = "complete.obs"),    cor(lqb$epa, lqb$ltdint, use = "complete.obs"),
+  
+  "PFF Offense grade", cor(lqb$grade, lqb$lag_grade, use = "complete.obs"),    cor(lqb$epa, lqb$lag_grade, use = "complete.obs"),
+  
+  "PFF WAR per play",  cor(lqb$war_per_play, lqb$lwarpp, use = "complete.obs"),        cor(lqb$epa, lqb$lwarpp, use = "complete.obs"),
+  
+  "Total Points per play (SIS)", cor(lqb$tpp, lqb$ltpp, use = "complete.obs"), cor(lqb$epa, lqb$ltpp, use = "complete.obs"),
+  
+  "QBR (ESPN)",        cor(lqb$qbr, lqb$lag_qbr, use = "complete.obs"),        cor(lqb$epa, lqb$lag_qbr, use = "complete.obs"),
+  "CPOE",              cor(lqb$cpoe, lqb$lcpoe, use = "complete.obs"),      cor(lqb$epa, lqb$lcpoe, use = "complete.obs"),
+  "CPOE + EPA index",  cor(lqb$index, lqb$lindex, use = "complete.obs"),    cor(lqb$epa, lqb$lindex, use = "complete.obs"),
+  
+  "EPA per play",      cor(lqb$epa, lqb$lepa, use = "complete.obs"),        cor(lqb$epa, lqb$lepa, use = "complete.obs"),
+  "Adj. EPA per play", cor(lqb$adj_epa, lqb$ladj_epa, use = "complete.obs"), cor(lqb$epa, lqb$ladj_epa, use = "complete.obs"),
+  
+  "AY/A",              cor(lqb$aya, lqb$laya, use = "complete.obs"),        cor(lqb$epa, lqb$laya, use = "complete.obs")
+)
+
+t2
+
+tab <- t2 %>%
+  arrange(-epa) %>%
+  gt() %>%
+  cols_label(
+    Metric = md("**Measure**"),  
+    Stability=md("**Year-to-year<br>stability (correlation)**"), 
+    epa = md("**Correlation with<br>next year's EPA/play**"),
+  ) %>%
+  cols_align(align = "center") %>% 
+  tab_source_note(
+    source_note = paste("Table: @benbbaldwin | Data: nflfastR, PFF, ESPN, SIS, @reinhurdler | Min", qb_min, "plays")) %>%
+  tab_header(
+    title = "Comparing measurements of QB play: QBs WITH NEW PLAYCALLER",
+    subtitle = glue::glue("2012 through 2021: {lqb %>% filter(!is.na(lag_grade)) %>% nrow()} QB-seasons of QBs who switched teams or had new play-caller on the same team.")
+  ) %>%
+  tab_style(style = cell_text(size = 'x-large'), locations = cells_title(groups = 'title')) %>%
+  data_color(
+    columns = vars(epa),
+    colors = scales::col_numeric(palette = c('grey97', 'darkorange1'), domain = c(0.12,0.44)),
+    autocolor_text = FALSE
+  ) %>%
+  gtExtras::gt_theme_538() %>%
+  tab_footnote(
+    footnote = "Since 2016",
+    locations = cells_body(columns = Metric, rows = c(9))
+  ) %>%
+  tab_footnote(
+    footnote = "Adjustment caps value of negative plays at average value of turnover (-4.5)",
+    locations = cells_body(columns = Metric, rows = 3)
+  ) %>%
+  tab_style(
+    style = list(
+      cell_fill(color = "white")
+    ),
+    locations = cells_body(
+      columns = vars(epa),
+      rows = c(10))
+  ) %>%
+  gtExtras::fmt_pad_num(columns = c(2, 3), nsmall = 2)
+
+
+tab
+
+tab %>%
+  gtsave("img/qb_properties_switchers_pc.png")
+
+# see list of recent switchers
+lqb %>%
+  filter(season >= 2021) %>%
+  arrange(season) %>%
+  select(name, season, posteam, lag_posteam)
 

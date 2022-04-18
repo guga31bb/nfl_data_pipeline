@@ -81,7 +81,7 @@ library(gt)
     filter(pick == pick_dk + 0.5) %>%
     ungroup() %>%
     select(player, pos, line = pick_dk, before_dk = pct, before_espn = tot_espn) %>%
-    mutate(diff = abs(before_dk - before_espn)) %>%
+    mutate(diff = (before_espn - before_dk)) %>%
     arrange(-diff)
   
 # make table

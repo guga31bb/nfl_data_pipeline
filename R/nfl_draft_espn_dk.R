@@ -1,7 +1,7 @@
 library(tidyverse)
 library(gt)
 
-# DK (note: no QBs in here)
+# DK
   
   dk <- "https://sportsbook.draftkings.com//sites/US-SB/api/v4/eventgroups/88670561/categories/669/subcategories/6444?format=json" %>%
       jsonlite::fromJSON(url) %>%
@@ -43,6 +43,9 @@ library(gt)
       pivot_wider(values_from = c(odds, pct), names_from = under) %>%
       select(player, pick_dk = pick, odds_under = odds_1, odds_over = odds_0, pct_under = pct_1) %>%
       arrange(pick_dk)
+    
+    dk %>%
+      write_csv("data/dk_draft_2022.csv")
     
 # ESPN
 

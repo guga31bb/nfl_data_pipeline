@@ -24,9 +24,7 @@ con <- DBI::dbConnect(RSQLite::SQLite(), glue::glue('{data_path}/master_db'))
 
 for (x in 1999:s) {
   message(glue::glue('Downloading {x} games now'))
-  pbp_cleaned <- readRDS(
-    url(glue::glue("https://raw.githubusercontent.com/guga31bb/nflfastR-data/master/data/play_by_play_{x}.rds"))
-  )
+  pbp_cleaned <- nflreadr::load_pbp(x)
   
   #no point in saving raw data anymore, only use this
   DBI::dbWriteTable(con, "cleaned_pbp", pbp_cleaned, append = TRUE)
